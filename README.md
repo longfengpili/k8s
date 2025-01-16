@@ -158,6 +158,37 @@ sudo apt install -y containerd.io
 ```bash
 containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+```
+
+### 配置容器运行时默认沙盒镜像
+
+#### 修改 containerd 配置
+```bash
+sudo vim /etc/containerd/config.toml
+```
+确保以下内容正确：
+```toml
+[plugins."io.containerd.grpc.v1.cri".containerd]
+  sandbox_image = "registry.aliyuncs.com/google_containers/pause:3.10"
+
+[plugins."io.containerd.grpc.v1.cri".registry.mirrors]
+  config_path = "/etc/containerd/certs.d"
+```
+
+#### 创建景象加速器配置文件
+```bash
+sudo vim /etc/containerd/certs.d/docker.io/hosts.toml
+```
+确保添加一下内容：
+```toml
+[host."https://docker.longfengpili.cn"]
+  capabilities = ["pull", "resolve", "push"]
+
+server = "https://registry-1.docker.io"
+```
+
+#### 重启 containerd 服务
+```bash
 sudo systemctl restart containerd
 sudo systemctl enable containerd
 ```
@@ -189,29 +220,6 @@ sudo apt-mark hold kubelet kubeadm kubectl
 ### 拉取沙盒镜像
 ```bash
 sudo ctr image pull registry.cn-hangzhou.aliyuncs.com/google_containers/pause:3.10
-```
-
-### 配置容器运行时默认沙盒镜像
-
-#### 修改 containerd 配置
-```bash
-sudo vim /etc/containerd/config.toml
-```
-确保以下内容正确：
-```toml
-[plugins."io.containerd.grpc.v1.cri".containerd]
-sandbox_image = "registry.aliyuncs.com/google_containers/pause:3.10"
-
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors]
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.k8s.io"]
-  endpoint = ["https://registry.aliyuncs.com/google_containers"]
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-  endpoint = ["https://docker.longfengpili.cn"]
-```
-
-#### 重启 containerd 服务
-```bash
-sudo systemctl restart containerd
 ```
 
 ### 初始化集群
@@ -283,63 +291,65 @@ sudo kubeadm join 192.168.2.151:6443 --token <token> --discovery-token-ca-cert-h
 kubectl get nodes
 ```
 
-## 14. 部署 Nginx 应用程序
 
-执行以下命令创建一个 Nginx 部署：
+## 14. 创建nginx服务
 
+1. 执行以下命令创建一个 Nginx 部署：
 ```bash
 kubectl create deployment nginx --image=nginx
 ```
 
-将该部署暴露为服务，使其可通过端口访问：
+2. 删除原有的 Nginx Service（如果存在）：
+   ```bash
+   kubectl delete svc nginx
+   ```
 
-```bash
-kubectl expose deployment nginx --port=80 --type=NodePort --node-port=30080
-```
+3. 编写 YAML 文件来定义具有指定 `NodePort` 的 Service。创建一个名为 `nginx-service.yaml` 的文件，内容如下：
 
----
+   ```yaml
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: nginx
+   spec:
+     type: NodePort
+     selector:
+       app: nginx
+     ports:
+       - protocol: TCP
+         port: 80
+         targetPort: 80
+         nodePort: 30080
+   ```
 
-## 15. （可选）禁用防火墙或在防火墙中添加端口规则
+4. 应用 YAML 文件来创建 Service：
+   ```bash
+   kubectl apply -f nginx-service.yaml
+   ```
 
-在此步骤中，可以临时禁用防火墙或为 NodePort 和 Nginx 相关端口添加防火墙规则，以便访问服务。
+5. 验证创建的 Service
 
----
-
-## 16. 获取分配给 Nginx 服务的 NodePort
-
-运行以下命令查看 Nginx 服务的详细信息：
+运行以下命令，确认服务已创建且绑定到指定的 NodePort：
 
 ```bash
 kubectl get svc
 ```
 
-### 示例输出：
-
+示例输出：
 ```plaintext
-NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
-kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP        3m24s
-nginx        NodePort    10.109.206.194  <none>        80:30080/TCP   6s
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+nginx        NodePort    10.109.206.194   <none>        80:30080/TCP   6s
 ```
 
-### 访问应用程序
+6. 访问服务
 
-您可以在浏览器中访问以下 URL，查看 Nginx 应用程序是否正常运行：
-
+使用浏览器或 `curl` 访问服务：
 ```
-http://<节点IP>:<NodePort>
-```
-
-根据示例输出，Nginx 服务的访问地址为：
-
-```
-http://192.168.2.151:30080
+http://<节点IP>:30080
 ```
 
-要删除之前创建的 Nginx 资源（包括部署和服务），可以使用以下步骤：
 
----
-
-## 17. 删除 Nginx 部署
+## 15. 删除 Nginx 部署
 
 + 执行以下命令删除 Nginx 的部署：
 
