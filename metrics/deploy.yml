@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kube-state-metrics
-  namespace: kube-system
+  namespace: kubestate
 spec:
   replicas: 1
   selector:
@@ -16,7 +16,7 @@ spec:
       serviceAccountName: kube-state-metrics
       containers:
       - name: kube-state-metrics
-        image: bitnami/kube-state-metrics:2.5.0
+        image: bitnami/kube-state-metrics:latest
         ports:
         - containerPort: 8080
 
@@ -26,7 +26,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: kube-state-metrics
-  namespace: kube-system
+  namespace: kubestate
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -60,7 +60,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: kube-state-metrics
-  namespace: kube-system
+  namespace: kubestate
 
 #创建service，暴露端口，用于在k8s外部访问
 ---
@@ -70,7 +70,7 @@ metadata:
   annotations:
     prometheus.io/scrape: 'true'
   name: kube-state-metrics
-  namespace: kube-system
+  namespace: kubestate
   labels:
     app: kube-state-metrics
 spec:
