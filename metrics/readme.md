@@ -3,6 +3,7 @@
 
 # 部署监控
 ```bash
+kubectl create namespace kubestate
 kubectl apply -f deploy.yml
 ```
 
